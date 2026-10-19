@@ -1,15 +1,20 @@
+const crypto = require("crypto");
 const pool = require("../bd-local");
 
-// Consultar todos los talleres (incluye cuántos alumnos llevan inscritos y cuántos lugares quedan)
+// Columnas del taller + cuántos alumnos llevan registrados y cuántos lugares quedan
+const SELECT_TALLER = `
+    SELECT t.id, t.nombre, t.instructor, t.fecha, t.cupo,
+           COUNT(a.id) AS inscritos,
+           t.cupo - COUNT(a.id) AS lugares_disponibles
+    FROM talleres t
+    LEFT JOIN asistencias a ON a.taller_id = t.id`;
+
+const GROUP_TALLER = `GROUP BY t.id, t.nombre, t.instructor, t.fecha, t.cupo`;
+
+// Consultar todos los talleres
 async function consultarTodos() {
   const [filas] = await pool.query(
-    `SELECT t.id, t.nombre, t.instructor, t.cupo,
-                COUNT(i.id) AS inscritos,
-                t.cupo - COUNT(i.id) AS lugares_disponibles
-         FROM talleres t
-         LEFT JOIN inscripciones i ON i.taller_id = t.id
-         GROUP BY t.id, t.nombre, t.instructor, t.cupo
-         ORDER BY t.id`,
+    `${SELECT_TALLER} ${GROUP_TALLER} ORDER BY t.fecha, t.nombre`,
   );
   return filas;
 }
@@ -17,20 +22,14 @@ async function consultarTodos() {
 // Obtener un taller por id (undefined si no existe)
 async function obtenerPorId(id) {
   const [filas] = await pool.query(
-    `SELECT t.id, t.nombre, t.instructor, t.cupo,
-                COUNT(i.id) AS inscritos,
-                t.cupo - COUNT(i.id) AS lugares_disponibles
-         FROM talleres t
-         LEFT JOIN inscripciones i ON i.taller_id = t.id
-         WHERE t.id = ?
-         GROUP BY t.id, t.nombre, t.instructor, t.cupo`,
+    `${SELECT_TALLER} WHERE t.id = ? ${GROUP_TALLER}`,
     [id],
   );
   return filas[0];
 }
 
-// Registrar (inscribir) a un alumno en un taller
-async function registrarAlumno({ taller_id, usuario_id }) {
+// Registrar a un alumno en un taller
+async function registrarAlumno({ taller_id, nombre_alumno, boleta }) {
   const taller = await obtenerPorId(taller_id);
 
   if (!taller) {
@@ -45,15 +44,26 @@ async function registrarAlumno({ taller_id, usuario_id }) {
     throw error;
   }
 
-  // Si el alumno ya estaba inscrito, MySQL lanza ER_DUP_ENTRY (requiere UNIQUE en taller_id + usuario_id)
-  const [info] = await pool.query(
-    `INSERT INTO inscripciones (taller_id, usuario_id) VALUES (?, ?)`,
-    [taller_id, usuario_id],
+  // La tabla no tiene UNIQUE (taller_id, boleta), lo revisa aquí
+  const [repetido] = await pool.query(
+    `SELECT id FROM asistencias WHERE taller_id = ? AND boleta = ?`,
+    [taller_id, boleta],
+  );
+  if (repetido.length > 0) {
+    const error = new Error("El alumno ya está registrado en este taller");
+    error.code = "ALUMNO_YA_REGISTRADO";
+    throw error;
+  }
+
+  const id = crypto.randomUUID();
+  await pool.query(
+    `INSERT INTO asistencias (id, taller_id, nombre_alumno, boleta) VALUES (?, ?, ?, ?)`,
+    [id, taller_id, nombre_alumno, boleta],
   );
 
   const [filas] = await pool.query(
-    `SELECT id, taller_id, usuario_id FROM inscripciones WHERE id = ?`,
-    [info.insertId],
+    `SELECT id, taller_id, nombre_alumno, boleta, fecha_registro FROM asistencias WHERE id = ?`,
+    [id],
   );
   return filas[0];
 }
