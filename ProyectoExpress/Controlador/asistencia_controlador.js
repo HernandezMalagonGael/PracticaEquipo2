@@ -4,13 +4,14 @@ function esDuplicado(error) {
     return error.code === 'ER_DUP_ENTRY' || error.code === '23505';
 }
 
+// POST: registrar la asistencia de un alumno a un taller
 async function registrarAsistencia(req, res) {
     try {
-        const { usuario_id, taller_id } = req.body;
+        const { usuario_id, taller_id, fecha, estado } = req.body;
         if (!usuario_id || !taller_id) {
             return res.status(400).json({ error: 'usuario_id y taller_id son obligatorios' });
         }
-        const asistencia = await asistenciaModelo.registrarAsistencia(usuario_id, taller_id);
+        const asistencia = await asistenciaModelo.registrarAsistencia({ taller_id, usuario_id, fecha, estado });
         res.status(201).json(asistencia);
     } catch (error) {
         if (esDuplicado(error)) {
@@ -20,9 +21,10 @@ async function registrarAsistencia(req, res) {
     }
 }
 
+// GET: consultar las asistencias de un taller
 async function consultarAsistenciaPorTaller(req, res) {
     try {
-        const asistencias = await asistenciaModelo.consultarPorTaller(req.params.tallerId);
+        const asistencias = await asistenciaModelo.consultarAsistenciaPorTaller(req.params.tallerId);
         res.json(asistencias);
     } catch (error) {
         res.status(500).json({ error: error.message });
