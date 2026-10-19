@@ -4,7 +4,6 @@ function esDuplicado(error) {
     return error.code === 'ER_DUP_ENTRY' || error.code === '23505';
 }
 
-// POST: registrar la asistencia de un alumno a un taller
 async function registrarAsistencia(req, res) {
     try {
         const { usuario_id, taller_id, fecha, estado } = req.body;
@@ -21,7 +20,6 @@ async function registrarAsistencia(req, res) {
     }
 }
 
-// GET: consultar las asistencias de un taller
 async function consultarAsistenciaPorTaller(req, res) {
     try {
         const asistencias = await asistenciaModelo.consultarAsistenciaPorTaller(req.params.tallerId);
