@@ -14,3 +14,21 @@ async function registrarAsistencia({ taller_id, usuario_id, fecha, estado }) {
     );
     return filas[0];
 }
+
+// Consultar todas las asistencias de un taller específico
+async function consultarAsistenciaPorTaller(taller_id) {
+    const [filas] = await pool.query(
+        `SELECT a.id, a.taller_id, a.usuario_id, u.nombre, u.boleta, u.correo, a.fecha, a.estado
+         FROM asistencia a
+         JOIN usuarios u ON a.usuario_id = u.id
+         WHERE a.taller_id = ?
+         ORDER BY a.fecha DESC`,
+        [taller_id]
+    );
+    return filas;
+}
+
+module.exports = {
+    registrarAsistencia,
+    consultarAsistenciaPorTaller
+};
